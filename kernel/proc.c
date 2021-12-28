@@ -143,6 +143,13 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  // Store the initial created time in ticks of the process
+  acquire(&tickslock);
+  p->created = ticks;
+  release(&tickslock);
+  p->ended = 0;
+  p->running = 0;
+
   return p;
 }
 
@@ -168,6 +175,10 @@ freeproc(struct proc *p)
   p->state = UNUSED;
   p->priority = 0;    // reset priority to 0 or high for a process
   p->numTimeRun = 0;  // reset the number of times a medium priority process has run
+                      // reset the variables used to keep track of the time to 0
+  p->created = 0;
+  p->ended = 0;
+  p->running = 0;
 }
 
 // Create a user page table for a given process,
@@ -375,6 +386,12 @@ exit(int status)
   p->xstate = status;
   p->state = ZOMBIE;
 
+
+  // save the time (ticks) when the process is terminated
+  acquire(&tickslock);
+  p->ended = ticks;
+  release(&tickslock);
+
   release(&wait_lock);
 
   // Jump into the scheduler, never to return.
@@ -411,6 +428,64 @@ wait(uint64 addr)
             release(&wait_lock);
             return -1;
           }
+          freeproc(np);
+          release(&np->lock);
+          release(&wait_lock);
+          return pid;
+        }
+        release(&np->lock);
+      }
+    }
+
+    // No point waiting if we don't have any children.
+    if(!havekids || p->killed){
+      release(&wait_lock);
+      return -1;
+    }
+    
+    // Wait for a child to exit.
+    sleep(p, &wait_lock);  //DOC: wait-sleep
+  }
+}
+
+// similar to wait() 
+// but also returns the turnaround time and the running time for the process waited for
+int
+waitstat(uint64 addr, uint64 turnaround, uint64 running)
+{
+  struct proc *np;
+  int havekids, pid;
+  struct proc *p = myproc();
+
+  acquire(&wait_lock);
+
+  for(;;){
+    // Scan through table looking for exited children.
+    havekids = 0;
+    for(np = proc; np < &proc[NPROC]; np++){
+      if(np->parent == p){
+        // make sure the child isn't still in exit() or swtch().
+        acquire(&np->lock);
+
+        havekids = 1;
+        if(np->state == ZOMBIE){
+          // Found one.
+          pid = np->pid;
+          
+          // Copy out the return values from kernel space
+          if(addr != 0 && (copyout(p->pagetable, addr, (char *)&np->xstate, sizeof(np->xstate)) < 0)){
+            release(&np->lock);
+            release(&wait_lock);
+            return -1;
+          }
+          uint turnaroundTime = np->ended - np->created;
+          if(copyout(p->pagetable, turnaround, (char *)(&turnaroundTime), sizeof(turnaroundTime)) < 0){
+            return(-1);
+          }
+          if(copyout(p->pagetable, running, (char *) (&np->running), sizeof(np->running)) < 0){
+            return(-1);
+          }
+
           freeproc(np);
           release(&np->lock);
           release(&wait_lock);

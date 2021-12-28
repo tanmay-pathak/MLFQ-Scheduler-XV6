@@ -165,6 +165,13 @@ clockintr()
   acquire(&tickslock);
   ticks++;
   wakeup(&ticks);
+  // Increment the running time of the process
+  struct proc *p = myproc();
+  if(p > 0){
+    if(p->state == RUNNING){
+     p->running += 1;
+   }
+  }
   release(&tickslock);
 }
 

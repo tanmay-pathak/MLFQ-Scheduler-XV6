@@ -95,6 +95,11 @@ struct proc {
   int priority;                // Priority of the process
   int numTimeRun;              // Number of times it has run when it is at medium priority
 
+  // fields to record the time it takes for a process to run
+  uint created;                // the time process was created
+  uint ended;                  // the time process was terminated
+  uint running;                // the time process spent running
+
   // wait_lock must be held when using this:
   struct proc *parent;         // Parent process
 

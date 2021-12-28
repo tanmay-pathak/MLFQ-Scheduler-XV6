@@ -95,3 +95,22 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// similar to wait() but returns the turnaround time and the running time of a process
+uint64
+sys_waitstat(void)
+{ 
+  uint64 p;
+  if(argaddr(0, &p) < 0)
+    return -1;
+  
+  uint64 turnaroundTime;
+  if(argaddr(1, &turnaroundTime) < 0)
+    return -1;
+  
+  uint64 runningTime;
+  if(argaddr(2, &runningTime) < 0)
+    return -1;
+
+  return waitstat(p, turnaroundTime, runningTime);
+}
