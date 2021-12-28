@@ -119,6 +119,8 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  p->priority = 0;    // default priority set to 0 or high for a new process
+  p->numTimeRun = 0;  // initialized the number of times a medium priority process has run
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -164,6 +166,8 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+  p->priority = 0;    // reset priority to 0 or high for a process
+  p->numTimeRun = 0;  // reset the number of times a medium priority process has run
 }
 
 // Create a user page table for a given process,
@@ -439,27 +443,73 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
+  int counter_moveup = 0;
   
   c->proc = 0;
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
 
+    // find the first high priority runnable process and run it
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
+      if(p->state == RUNNABLE && p->priority == 0) {
         p->state = RUNNING;
         c->proc = p;
         swtch(&c->context, &p->context);
+        counter_moveup++;
+        c->proc = 0;
+        // decrease the process' priority to medium now that it has run once
+        p->priority = 1;
+      }
+      release(&p->lock);
+    }
 
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
+    // find the first high or medium priority process and run it
+    for(p = proc; p < &proc[NPROC]; p++) {
+      acquire(&p->lock);
+      if(p->state == RUNNABLE && ( p->priority == 0 || p->priority == 1) ) {
+        p->state = RUNNING;
+        c->proc = p;
+        swtch(&c->context, &p->context);
+        counter_moveup++;
+        c->proc = 0;
+        // if a medium process was run, increment its mtimes counter
+        if(p->priority == 1){
+          p->numTimeRun += 1;
+        }else{
+          // if a high priority process was run decrease its priority
+          p->priority = 1;
+        }
+        // if a medium process has reached its mtimes limit, decrease its priority to low
+        if(p->numTimeRun == MTIMES){
+          p->priority = 2;
+        }
+      }
+      release(&p->lock);
+    }
+
+    // find the first runnable process and run it
+    for(p = proc; p < &proc[NPROC]; p++) {
+      acquire(&p->lock);
+      if(p->state == RUNNABLE) {
+        p->state = RUNNING;
+        c->proc = p;
+        swtch(&c->context, &p->context);
+        counter_moveup++;
         c->proc = 0;
       }
       release(&p->lock);
+    }
+
+    // move up every process' priority to high once the scheduler has ran any process for MOVEUP times or more
+    if(counter_moveup >= MOVEUP){
+      for(p = proc; p < &proc[NPROC]; p++) {
+      acquire(&p->lock);
+      p->priority = 0;
+      release(&p->lock);
+      }
+      counter_moveup = 0;
     }
   }
 }
@@ -650,7 +700,7 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    printf("%d %s %s", p->pid, state, p->name);
+    printf("%d %s %s | Priority: %d", p->pid, state, p->name, p->priority); 
     printf("\n");
   }
 }
