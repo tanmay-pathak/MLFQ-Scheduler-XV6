@@ -11,3 +11,5 @@
 #define NBUF         (MAXOPBLOCKS*3)  // size of disk block cache
 #define FSSIZE       1000  // size of file system in blocks
 #define MAXPATH      128   // maximum file path name
+#define MOVEUP       10    // Number of schedules after which all medium and low priority processes are moved to high priority
+#define MTIMES       1000  // Number of schedules after which medium priority processes are moved to low priority

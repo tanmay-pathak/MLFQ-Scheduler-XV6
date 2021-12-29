@@ -1,47 +1,49 @@
-xv6 is a re-implementation of Dennis Ritchie's and Ken Thompson's Unix
-Version 6 (v6).  xv6 loosely follows the structure and style of v6,
-but is implemented for a modern RISC-V multiprocessor using ANSI C.
 
-ACKNOWLEDGMENTS
+# MLFQ Scheduler
 
-xv6 is inspired by John Lions's Commentary on UNIX 6th Edition (Peer
-to Peer Communications; ISBN: 1-57398-013-7; 1st edition (June 14,
-2000)). See also https://pdos.csail.mit.edu/6.828/, which
-provides pointers to on-line resources for v6.
+A Multi Level Feedback Queue scheduler for the RISC-V port of XV6.
+## Authors
+- [Hamza Aziz](https://github.com/Hamza975A)
+- [Tanmay Pathak](https://github.com/tanmay-pathak)
 
-The following people have made contributions: Russ Cox (context switching,
-locking), Cliff Frey (MP), Xiao Yu (MP), Nickolai Zeldovich, and Austin
-Clements.
+## Acknowledgements
 
-We are also grateful for the bug reports and patches contributed by
-Takahiro Aoyagi, Silas Boyd-Wickizer, Anton Burtsev, Ian Chen, Dan
-Cross, Cody Cutler, Mike CAT, Tej Chajed, Asami Doi, eyalz800, Nelson
-Elhage, Saar Ettinger, Alice Ferrazzi, Nathaniel Filardo, flespark,
-Peter Froehlich, Yakir Goaron,Shivam Handa, Matt Harvey, Bryan Henry,
-jaichenhengjie, Jim Huang, Matúš Jókay, Alexander Kapshuk, Anders
-Kaseorg, kehao95, Wolfgang Keller, Jungwoo Kim, Jonathan Kimmitt,
-Eddie Kohler, Vadim Kolontsov , Austin Liew, l0stman, Pavan
-Maddamsetti, Imbar Marinescu, Yandong Mao, , Matan Shabtay, Hitoshi
-Mitake, Carmi Merimovich, Mark Morrissey, mtasm, Joel Nider,
-OptimisticSide, Greg Price, Jude Rich, Ayan Shafqat, Eldar Sehayek,
-Yongming Shen, Fumiya Shigemitsu, Cam Tenny, tyfkda, Warren Toomey,
-Stephen Tu, Rafael Ubal, Amane Uehara, Pablo Ventura, Xi Wang, Keiichi
-Watanabe, Nicolas Wolovick, wxdao, Grant Wu, Jindong Zhang, Icenowy
-Zheng, ZhUyU1997, and Zou Chang Wei.
+ - [MIT-PDOS](https://github.com/mit-pdos/xv6-riscv)
+ - [XV6-Explained](https://github.com/YehudaShapira/xv6-explained)
+ - [OSTEP](https://pages.cs.wisc.edu/~remzi/OSTEP/)
 
-The code in the files that constitute xv6 is
-Copyright 2006-2020 Frans Kaashoek, Robert Morris, and Russ Cox.
 
-ERROR REPORTS
+## Documentation
+- We implemented a variant of MLFQ scheduling where each process would have an associated current priority which can be "high", "medium", or "low". 
+- This is done through keeping track of the current priority of a process as an integer in the proc structure.
+- Everytime the scheduler is looking for a process to run it will first search for a high priority process to run then a high or medium priority process and then any runnable process.
+- New syscall named `waitstat` was added which works like `wait` but also returns the turnaround time and the running time of the process waited for.
+- We also included a test program (`test.c`) which performs some arbritary calculations to simulate some work and then calls waitstat. The results are printed when the test completes.
+## Features
+- New processes are initially given "high" priority.
+- High priority process is moved to medium priority after one run.
+- Medium priority process is moved to lower priority after `MTIMES` schedules defined in `param.h`.
+- All processes are moved to high priority after `MOVEUP` schedules defined in `param.h`.
 
-Please send errors and suggestions to Frans Kaashoek and Robert Morris
-(kaashoek,rtm@mit.edu). The main purpose of xv6 is as a teaching
-operating system for MIT's 6.S081, so we are more interested in
-simplifications and clarifications than new features.
 
-BUILDING AND RUNNING XV6
+## Lessons Learned
 
-You will need a RISC-V "newlib" tool chain from
-https://github.com/riscv/riscv-gnu-toolchain, and qemu compiled for
-riscv64-softmmu. Once they are installed, and in your shell
-search path, you can run "make qemu".
+Our testing to compare the default xv6 scheduler with our newly implemented MLFQ scheduler resulted in the following:
+- Default scheduler is more efficient for smaller inputs for our test program because the overhead of selecting the right process to run is high.
+- If `MTIMES` and `MOVEUP` values are too close to each other then the MLFQ scheduler just ends up working the same as the default scheduler.
+Improvements that can be made are:
+- Switch to a time-slice based lowering of priority.
+- Allow the user to suggest a priority for the process.
+- Allow processes to move up to a higher priority if the process does not fully utilize the allotted time-slice when scheduled.
+
+## Instructions to Run
+1. Clone the project.
+2. Add path of `riscv64` to the `Makefile`.
+3. Run `make qemu` to boot up xv6.
+4. Run `test` user program with four integer arguments to perform some arbritary calculations.
+5. After the calculations are finished the user program will print the results.
+
+
+## [License](/LICENSE)
+
+
